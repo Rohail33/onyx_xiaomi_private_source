@@ -1,0 +1,11 @@
+config XIAOMI_MIGT
+	tristate "Xiaomi MIGT performance framework"
+	help
+	  Xiaomi MIGT is a vendor performance framework used for frame-aware
+	  boosting, game/load classification, FLT/GLK tuning, and related
+	  scheduler hooks.
+
+	  This is a reverse-engineered compatibility layer. Enable it only if
+	  your tree also provides the Xiaomi WALT/Metis/MIST hook surface or the
+	  matching companion modules.
+

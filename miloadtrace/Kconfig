@@ -1,0 +1,15 @@
+
+# SPDX-License-Identifier: GPL-2.0
+config XIAOMI_MILOADTRACE
+	tristate "Xiaomi frame-load trace and Mi governor"
+	depends on SMP && CPU_FREQ
+	select MISC_DEVICES
+	select PROC_FS
+	help
+	  Reconstructed Xiaomi miloadtrace module.
+	  The vendor module provides frame-load accounting hooks, /proc/miload
+	  controls, the mi_frameload misc device, and a small cpufreq governor
+	  registration surface used together with mi_schedule, sched-walt, and
+	  metis.
+	  This reconstruction preserves the recovered ABI while keeping runtime
+	  policy conservative for bring-up.

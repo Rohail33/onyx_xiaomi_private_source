@@ -1,0 +1,259 @@
+# Kconfig for Xiaomi MI Scheduler Module
+# drivers/mihw/mi_sched/Kconfig
+
+menuconfig MI_SCHED
+	tristate "Xiaomi MI Scheduler (MI-SCHED)"
+	depends on SMP && ARM64
+	default m
+	help
+	  Enable Xiaomi MI Scheduler for heterogeneous multi-core CPU optimization.
+
+	  The MI Scheduler is a custom process scheduling system that optimizes
+	  performance on devices with heterogeneous CPU clusters (little cores,
+	  big cores, etc.). It provides:
+
+	  - Per-application performance tuning
+	  - Foreground/background task distinction
+	  - FPS-aware scheduling for UI applications
+	  - Real-time CPU cluster load monitoring
+	  - Dynamic task migration between CPU clusters
+	  - Frame load prediction and optimization
+
+	  This module integrates with the Linux kernel scheduler and provides
+	  additional intelligence for heterogeneous multi-core processors.
+
+	  If unsure, say M (compile as module).
+
+if MI_SCHED
+
+config MI_SCHED_DEBUG
+	bool "Enable MI Scheduler debugging"
+	default n
+	help
+	  Enable debug output and verbose logging from the MI Scheduler module.
+	  This will print additional information to the kernel log for debugging
+	  and analysis purposes.
+
+	  Debug messages use the prefix "6mi_group:" and "3mi_sched:".
+
+	  If unsure, say N.
+
+config MI_SCHED_DEVELOP_MODE
+	bool "Enable development mode support"
+	default y
+	help
+	  Enable development mode in MI Scheduler for detailed analysis and
+	  debugging. This allows toggling development mode via procfs at runtime.
+
+	  Development mode provides:
+	  - Enhanced debug output
+	  - Detailed statistics collection
+	  - Trace window functionality
+	  - Pause mode for scheduler analysis
+
+	  If unsure, say Y.
+
+config MI_SCHED_PROC_FS
+	bool "Procfs interface for MI Scheduler"
+	depends on PROC_FS
+	default y
+	help
+	  Create /proc/mi_sched/ directory with interface files for monitoring
+	  and configuring the MI Scheduler at runtime.
+
+	  Procfs interface provides:
+	  - /proc/mi_sched/top_package - Top packages by CPU usage
+	  - /proc/mi_sched/trace_stat - Trace statistics
+	  - /proc/mi_sched/window_size - Runtime window configuration
+	  - /proc/mi_sched/traced_window - Detailed trace data
+	  - /proc/mi_sched/runtime - Per-package runtime statistics
+	  - /proc/mi_sched/develop_mode - Development mode toggle
+	  - /proc/mi_sched/pause_mode - Pause mode toggle
+
+	  If unsure, say Y.
+
+config MI_SCHED_DEVICE_INTERFACE
+	bool "Device interface for MI Scheduler"
+	default y
+	help
+	  Create /dev/mi_group device for ioctl-based control and configuration
+	  of the MI Scheduler.
+
+	  Device interface provides:
+	  - MI_SCHED_IOC_QUERY_GROUP - Query group information
+	  - MI_SCHED_IOC_CHANGE_FPS - Change FPS target
+	  - MI_SCHED_IOC_CHANGE_APP_STATUS - Update application status
+	  - MI_SCHED_IOC_RESET_WINDOW - Reset statistics window
+	  - Memory mapping for shared statistics
+
+	  If unsure, say Y.
+
+config MI_SCHED_NUM_CLUSTERS
+	int "Number of CPU clusters"
+	range 1 4
+	default 4
+	help
+	  Configure the number of heterogeneous CPU clusters on the device.
+
+	  Typical configurations:
+	  - 2: Little clusters + Big cluster
+	  - 3: Little + Big 1 + Big 2
+	  - 4: Little + Big 1 + Big 2 + Super (premium devices)
+
+	  This value can be updated at runtime via module parameter.
+
+config MI_SCHED_LS_GRP_PREFER_CID
+	int "Preferred cluster ID for LS groups"
+	range 0 3
+	default 0
+	help
+	  Set the default preferred cluster ID for Little/Small (LS) groups.
+
+	  Cluster IDs:
+	  - 0: Little cores (low power, default)
+	  - 1: Big cores cluster 1 (mid-performance)
+	  - 2: Big cores cluster 2 (high-performance)
+	  - 3: Super cores (ultra-performance, if available)
+
+	  This setting affects task placement for background applications.
+
+config MI_SCHED_TARGET_MAKEUP_NS
+	int "Target makeup time in nanoseconds"
+	range 0 10000000000
+	default 0
+	help
+	  Configure the target makeup time for frame deadline achievement.
+
+	  Makeup time is the additional time allowed for a task to meet its
+	  frame deadline. This is useful for ensuring consistent frame rates
+	  in latency-sensitive applications.
+
+	  Value in nanoseconds (0 = disabled, default).
+	  Example: 1000000000 = 1 second
+
+config MI_SCHED_MAX_USERS
+	int "Maximum concurrent users"
+	range 100 10000
+	default 1000
+	help
+	  Configure the maximum number of concurrent users that can be tracked
+	  by the MI Scheduler.
+
+	  Each user (UID) gets its own scheduler metadata structure. Increasing
+	  this value increases memory usage.
+
+config MI_SCHED_MAX_GROUPS
+	int "Maximum scheduler groups"
+	range 16 1024
+	default 256
+	help
+	  Configure the maximum number of process groups that can be managed
+	  by the MI Scheduler.
+
+	  Each group represents a set of related tasks with shared scheduling
+	  policy. Increasing this value increases memory usage.
+
+config MI_SCHED_WORKQUEUE
+	bool "Use workqueue for async operations"
+	default y
+	help
+	  Use kernel workqueue for asynchronous MI Scheduler operations.
+	  This offloads certain scheduling decisions to a dedicated worker thread.
+
+	  If unsure, say Y.
+
+config MI_SCHED_STATISTICS
+	bool "Comprehensive statistics collection"
+	default y
+	help
+	  Enable collection of detailed statistics about task scheduling,
+	  group transitions, and CPU cluster usage.
+
+	  Statistics are available via:
+	  - /proc/mi_sched/trace_stat
+	  - /proc/mi_sched/runtime
+	  - Device ioctl queries
+
+	  Enabling statistics has minimal performance impact (~1-2%).
+
+config MI_SCHED_FRAME_TRACKING
+	bool "Frame load tracking for UI optimization"
+	default y
+	help
+	  Enable frame load tracking for optimizing UI applications.
+
+	  Frame tracking monitors frame completion time and predicts frame load
+	  for better scheduling decisions. This is particularly useful for
+	  maintaining consistent frame rates in display-intensive applications.
+
+	  Typical frame rates: 30 Hz, 60 Hz, 90 Hz, 120 Hz
+
+config MI_SCHED_RAVG_TRACKING
+	bool "Running average tracking"
+	default y
+	help
+	  Enable running average (RAVG) tracking for CPU utilization prediction.
+
+	  RAVG provides historical data for better load prediction and helps
+	  the scheduler make more informed decisions about task placement.
+
+config MI_SCHED_LOAD_HOOKS
+	bool "Enable scheduler load update hooks"
+	default y
+	help
+	  Register hooks into the kernel scheduler for real-time load updates.
+
+	  This allows the MI Scheduler to react to kernel scheduler events
+	  and adjust scheduling decisions accordingly.
+
+	  If unsure, say Y.
+
+config MI_SCHED_OPTIMIZE_FOREGROUND
+	bool "Optimize foreground applications"
+	default y
+	help
+	  Apply special optimization for foreground (interactive) applications.
+
+	  Foreground optimization includes:
+	  - Priority boost for UI tasks
+	  - Preferred placement on big cores
+	  - Lower latency for touch response
+	  - FPS-aware scheduling
+
+	  If unsure, say Y.
+
+config MI_SCHED_OPTIMIZE_BACKGROUND
+	bool "Optimize background applications"
+	default y
+	help
+	  Apply optimization for background applications.
+
+	  Background optimization includes:
+	  - Lower priority scheduling
+	  - Preferred placement on little cores
+	  - Power-efficient execution
+	  - Reduced frequency scaling
+
+	  If unsure, say Y.
+
+config MI_SCHED_POWER_EFFICIENCY
+	bool "Power efficiency optimization"
+	default y
+	help
+	  Enable power efficiency optimization in task scheduling.
+
+	  This optimizes for lower power consumption while maintaining
+	  acceptable performance for background tasks.
+
+	  If unsure, say Y.
+
+config MI_SCHED_THERMAL_CONTROL
+	bool "Thermal-aware scheduling"
+	default n
+	help
+	  Enable thermal-aware scheduling to prevent thermal throttling
+	  by distributing load more evenly across CPU clusters.
+
+	  Note: This requires additional integration with the thermal subsystem.
+
+endif # MI_SCHED

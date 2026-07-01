@@ -1,0 +1,106 @@
+# MIST (Memory Intensive Scheduler Tuning) Configuration
+# Xiaomi Performance Optimization Module
+
+config MIST_SCHEDULER
+	tristate "MIST - Memory Intensive Scheduler Tuning"
+	depends on SMP && ARM64 && CPU_FREQ
+	default m
+	help
+	  Enable MIST for advanced memory latency and bandwidth optimization.
+	  
+	  MIST (Memory Intensive Scheduler Tuning) provides:
+	  - Memory latency monitoring and optimization
+	  - Bandwidth-aware frequency scaling
+	  - GPU-aware performance tuning
+	  - DDR frequency coordination
+	  - Frame-based performance tracking
+	  - Performance counter collection
+	  
+	  This module is particularly beneficial for:
+	  - Mobile gaming and multimedia apps
+	  - High-performance computing workloads
+	  - Memory-intensive applications
+	  - Systems with GPU acceleration
+	  
+	  If unsure, say M (compile as module).
+
+if MIST_SCHEDULER
+
+config MIST_DEBUG
+	bool "MIST Debug Output"
+	default n
+	help
+	  Enable verbose debug output for MIST operations.
+	  Useful for development and troubleshooting.
+
+config MIST_FTRACE_DEBUG
+	bool "MIST Ftrace Debugging"
+	default n
+	help
+	  Enable kernel tracepoints for MIST performance analysis.
+
+config MIST_LATENCY_MONITOR
+	bool "MIST Latency Monitoring"
+	default y
+	help
+	  Enable memory latency monitoring and optimization.
+
+config MIST_BANDWIDTH_MONITOR
+	bool "MIST Bandwidth Monitoring"
+	default y
+	help
+	  Enable bandwidth monitoring and dynamic adjustment.
+
+config MIST_GPU_FLT
+	bool "MIST GPU Frequency Latency Tracking"
+	default y
+	help
+	  Enable GPU frequency latency tracking for optimal performance.
+
+config MIST_FREQUENCY_SCALING
+	bool "MIST Frequency Scaling Integration"
+	default y
+	help
+	  Integrate MIST with CPU frequency scaling (cpufreq).
+
+config MIST_DDR_OPTIMIZATION
+	bool "MIST DDR Frequency Optimization"
+	default y
+	help
+	  Enable DDR frequency optimization based on memory access patterns.
+
+config MIST_FRAME_TRACKING
+	bool "MIST Frame-based Performance Tracking"
+	default y
+	help
+	  Enable frame-based performance tracking for game optimization.
+
+config MIST_MAX_DDR_IB
+	int "Maximum DDR Instantaneous Bandwidth (MB/s)"
+	default 4000
+	range 1000 10000
+	help
+	  Maximum DDR bandwidth to consider for frequency scaling.
+
+config MIST_SPM_THRESHOLD
+	int "Stall Percentage Threshold (%)"
+	default 75
+	range 10 100
+	help
+	  Stall percentage threshold for triggering frequency adjustments.
+
+config MIST_IPS_THRESHOLD
+	int "Instructions Per Second Threshold"
+	default 2000
+	range 100 10000
+	help
+	  IPS threshold for performance-based frequency decisions.
+
+config MIST_STALLRATIO_THRESHOLD
+	int "Stall Ratio Threshold"
+	default 60
+	range 0 100
+	help
+	  Threshold for stall ratio-based frequency scaling decisions.
+
+endif # MIST_SCHEDULER

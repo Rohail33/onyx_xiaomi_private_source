@@ -1,0 +1,319 @@
+#
+# Xiaomi METIS - Mi Enhanced Task and Interactive System
+# Kernel configuration options
+#
+
+menuconfig XIAOMI_METIS
+	tristate "Xiaomi METIS - Performance Optimization Framework"
+	depends on ARM64 || ARM
+	help
+	  Enable Xiaomi's METIS (Mi Enhanced Task and Interactive System) kernel
+	  module for advanced performance optimization on ARM/ARM64 processors.
+
+	  METIS provides:
+	  - VIP (Very Important Process) task management for foreground apps
+	  - Lock optimization with priority inheritance (futex/mutex/rwsem)
+	  - Binder IPC priority propagation
+	  - CPU cluster affinity management
+	  - Dynamic frequency scaling
+	  - Intelligent load balancing
+	  - Energy-efficient task placement
+	  - Anomaly detection and cold-start optimization
+
+	  This is primarily beneficial for Android-based systems where interactive
+	  responsiveness is critical. When in doubt, say N.
+
+	  If you say M, the module will be called xiaomi_metis.
+
+if XIAOMI_METIS
+
+config XIAOMI_METIS_DEBUG
+	bool "Enable METIS debug logging"
+	default y
+	help
+	  Enable verbose kernel logging for METIS operations. Recommended for
+	  development and troubleshooting. When enabled, debug messages are
+	  printed to kernel log with the "metis:" prefix.
+
+	  Debug categories:
+	  - metis-fas: Foreground app scheduling
+	  - metis-link: Synchronization locks
+	  - metis-clu-aff: CPU cluster affinity
+	  - metis-fboost: Frequency boosting
+	  - metis-lb: Load balancing
+	  - metis-tp: Task placement
+	  - metis-cs: Cold start optimization
+	  - metis-doublecyc: Anomaly detection
+
+	  Say Y for development, N for production.
+
+config XIAOMI_METIS_VIP_TASKS
+	bool "Enable VIP task management"
+	default y
+	help
+	  Enable the VIP (Very Important Process) task management subsystem.
+	  This allows marking foreground applications and critical system tasks
+	  with elevated priority, ensuring responsive user interaction.
+
+	  Features:
+	  - Dynamic VIP flag management
+	  - Time-limited VIP status
+	  - UID and PID tracking
+	  - Automatic timeout expiry
+
+	  Say Y to enable foreground app optimization.
+
+config XIAOMI_METIS_LOCK_OPT
+	bool "Enable lock optimization (metis-link)"
+	default y
+	help
+	  Enable advanced lock optimization for synchronization primitives:
+	  - Futex priority inheritance
+	  - Mutex contention tracking
+	  - Read-Write semaphore (rwsem) optimization
+	  - Real-time mutex support
+	  - Per-CPU rwsem tracking
+
+	  This subsystem prevents priority inversion by propagating VIP status
+	  through lock chains, significantly reducing lock contention time.
+
+	  Say Y to enable lock optimization.
+
+config XIAOMI_METIS_BINDER_OPT
+	bool "Enable Binder IPC optimization"
+	default y
+	depends on XIAOMI_METIS_LOCK_OPT
+	help
+	  Enable priority inheritance through Android Binder IPC transactions.
+	  When a VIP task calls a server process via Binder, the server
+	  automatically inherits VIP status for the transaction duration.
+
+	  This ensures critical system services (surfaceflinger, audio, etc.)
+	  respond immediately to foreground app requests.
+
+	  Say Y to enable Binder optimization.
+
+config XIAOMI_METIS_CLUSTER_AFFINITY
+	bool "Enable CPU cluster affinity management"
+	default y
+	help
+	  Enable dynamic CPU cluster management for heterogeneous processors
+	  (big.LITTLE ARM architecture). This subsystem:
+
+	  - Detects and configures CPU clusters
+	  - Rebinds VIP tasks to performance clusters
+	  - Manages cluster-specific frequency settings
+	  - Respects thermal constraints
+
+	  Beneficial for ARM64 SoCs with multiple cluster types.
+
+	  Say Y to enable cluster affinity.
+
+config XIAOMI_METIS_FREQ_BOOST
+	bool "Enable frequency boosting"
+	default y
+	depends on XIAOMI_METIS_CLUSTER_AFFINITY
+	help
+	  Enable dynamic frequency scaling for performance-critical tasks.
+	  Coordinates with CPUFreq framework to:
+
+	  - Boost cluster frequencies for VIP tasks
+	  - Apply interactive boost on user input
+	  - Manage thermal throttling
+	  - Auto-expire boosts after timeout
+
+	  Requires CPUFreq support and QoS framework.
+
+	  Say Y to enable frequency boosting.
+
+config XIAOMI_METIS_LOAD_BALANCE
+	bool "Enable load balancing optimization"
+	default y
+	help
+	  Enable intelligent task load balancing across CPU cores.
+	  Optimizes VIP task distribution to:
+
+	  - Consolidate VIP tasks on performance CPUs
+	  - Spread background tasks on efficiency CPUs
+	  - Minimize task migration overhead
+	  - Respect thermal state
+
+	  Integrates with kernel scheduler hooks.
+
+	  Say Y to enable load balancing.
+
+config XIAOMI_METIS_TASK_PLACEMENT
+	bool "Enable task placement optimization (metis-tp)"
+	default y
+	depends on XIAOMI_METIS_LOAD_BALANCE
+	help
+	  Enable energy-efficient task placement using layered load model.
+	  Provides:
+
+	  - Per-CPU latency estimation
+	  - Schedule latency histograms
+	  - Energy-aware CPU selection
+	  - Thermal-aware placement
+
+	  Integrates with kernel energy-aware scheduling (EAS).
+
+	  Say Y to enable task placement.
+
+config XIAOMI_METIS_ANOMALY_DETECT
+	bool "Enable anomaly detection"
+	default y
+	help
+	  Enable runtime anomaly detection:
+
+	  Double-Cycle Detection (metis-doublecyc):
+	  - Detects tasks running longer than expected
+	  - Warns about potential infinite loops or deadlocks
+	  - Can trigger emergency recovery
+
+	  Cold Start Optimization (metis-cs):
+	  - Accelerates app launch time
+	  - Boosts app loader threads
+	  - Clears optimization after launch complete
+
+	  Say Y to enable anomaly detection.
+
+config XIAOMI_METIS_ART_MUTEX
+	bool "Enable ART mutex tracking"
+	default n
+	help
+	  Enable Java Runtime (Android Runtime) mutex contention tracking.
+	  Monitors java.lang.Object monitors and art::Mutex locks to:
+
+	  - Measure lock contention
+	  - Track owner/holder PIDs
+	  - Integrate with metis-link for priority inheritance
+	  - Provide /proc interface for monitoring
+
+	  Requires tight Android Runtime integration.
+
+	  Say Y only if building for Android with ART support.
+
+config XIAOMI_METIS_PROC_INTERFACE
+	bool "Enable /proc/metis interface"
+	default y
+	help
+	  Export statistics and status via /proc/metis read-only file.
+	  Accessible from user-space for monitoring and diagnostics.
+
+	  Shows:
+	  - Module configuration status
+	  - Feature enable/disable state
+	  - ART mutex statistics
+	  - Lock contention metrics
+
+	  Say Y for monitoring and debugging.
+
+config XIAOMI_METIS_DEVICE_INTERFACE
+	bool "Enable /dev/metis_link device"
+	default y
+	help
+	  Create miscdevice /dev/metis_link for user-space control.
+	  Provides:
+
+	  - ioctl() control channel
+	  - mmap() for shared memory
+	  - open/release for device lifecycle
+
+	  Used by system services, system_server, and apps to:
+	  - Set VIP tasks
+	  - Control boost parameters
+	  - Query module state
+
+	  Say Y to enable device interface.
+
+config XIAOMI_METIS_SYSFS_PARAMS
+	bool "Export module parameters via sysfs"
+	default y
+	help
+	  Export module parameters via /sys/module/xiaomi_metis/parameters/
+	  allowing runtime configuration:
+
+	  - mi_link_enable: Enable/disable lock optimization
+	  - mi_async_binder_link_enable: Enable/disable async binder linking
+	  - mi_lock_blocked_pid: Track specific blocked PIDs
+
+	  Accessible only to root for security.
+
+	  Say Y to enable runtime parameter control.
+
+config XIAOMI_METIS_HOOK_INTEGRATION
+	bool "Enable scheduler hook integration"
+	default y
+	help
+	  Register callbacks in kernel scheduler hotpaths:
+
+	  - Load balance detection (metis-lb)
+	  - Try-to-wake-up hook (task wake-up)
+	  - Energy-efficient CPU selection (metis-tp)
+	  - Task dequeue fair hook
+
+	  These hooks allow METIS to participate in scheduling decisions
+	  with minimal overhead.
+
+	  Say Y to enable hook integration.
+
+config XIAOMI_METIS_HOTPATH_OPTIMIZE
+	bool "Enable hotpath optimizations"
+	default y
+	help
+	  Apply aggressive optimizations for hotpath code:
+
+	  - Inline frequently-called functions
+	  - Use spinlocks instead of mutexes
+	  - Minimize memory barriers
+	  - Pre-allocate data structures
+	  - Optimize hash functions
+
+	  Can reduce latency by 5-10% but increases code size.
+
+	  Say Y for performance, N for smaller footprint.
+
+config XIAOMI_METIS_THERMAL_AWARE
+	bool "Enable thermal-aware optimizations"
+	default y
+	help
+	  Integrate with thermal management framework:
+
+	  - Reduce boost frequency when throttling
+	  - Migrate tasks away from hot CPUs
+	  - Adjust VIP priority under thermal stress
+	  - Monitor thermal_zone_device
+
+	  Say Y for devices with thermal constraints.
+
+config XIAOMI_METIS_ENERGY_AWARE
+	bool "Enable energy-aware scheduling"
+	default y
+	depends on XIAOMI_METIS_TASK_PLACEMENT
+	help
+	  Integrate with kernel Energy-Aware Scheduling (EAS):
+
+	  - Consider power models in CPU selection
+	  - Balance performance vs power consumption
+	  - Use Energy State Space (ESS) for decision making
+	  - Optimize for battery life
+
+	  Say Y for battery-efficient optimization.
+
+config XIAOMI_METIS_STATS
+	bool "Collect performance statistics"
+	default y
+	help
+	  Enable collection of performance metrics:
+
+	  - Lock contention statistics
+	  - Task migration counts
+	  - Frequency boost statistics
+	  - Load balancing decisions
+	  - Anomaly detection counters
+
+	  Statistics accessible via /proc/metis and kernel logs.
+
+	  Say Y for monitoring and analysis.
+
+endif # XIAOMI_METIS
