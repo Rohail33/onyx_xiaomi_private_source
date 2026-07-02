@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config XIAOMI_PERF_HELPER
+	tristate "Xiaomi perf helper"
+	depends on PROC_FS && SYSFS
+	help
+	  Reconstructed Xiaomi perf_helper module.
+
+	  The original vendor module exposes perflock, MIMD reclaim, and scheduler
+	  assistance interfaces and depends on sched-walt. This reconstruction
+	  preserves the visible ABI and user-facing nodes while keeping recovered
+	  runtime policy conservative.
