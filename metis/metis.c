@@ -749,29 +749,29 @@ int get_fboost_duration(void)
 EXPORT_SYMBOL_GPL(get_fboost_duration);
 
 #if !IS_ENABLED(CONFIG_XIAOMI_MIGT)
-int register_soc_update_flt_load(void *hook)
+/*int register_soc_update_flt_load(void *hook)
 {
 	return metis_store_hook(&soc_update_flt_load_ptr, hook);
 }
-EXPORT_SYMBOL_GPL(register_soc_update_flt_load);
+EXPORT_SYMBOL_GPL(register_soc_update_flt_load);*/
 
-int unregister_soc_update_flt_load(void)
+/*int unregister_soc_update_flt_load(void)
 {
 	return metis_store_hook(&soc_update_flt_load_ptr, NULL);
 }
-EXPORT_SYMBOL_GPL(unregister_soc_update_flt_load);
+EXPORT_SYMBOL_GPL(unregister_soc_update_flt_load);*/
 
-int register_soc_update_flt_reset(void *hook)
+/*int register_soc_update_flt_reset(void *hook)
 {
 	return metis_store_hook(&soc_update_flt_reset_ptr, hook);
 }
-EXPORT_SYMBOL_GPL(register_soc_update_flt_reset);
+EXPORT_SYMBOL_GPL(register_soc_update_flt_reset);*/
 
-int unregister_soc_update_flt_reset(void)
+/*int unregister_soc_update_flt_reset(void)
 {
 	return metis_store_hook(&soc_update_flt_reset_ptr, NULL);
 }
-EXPORT_SYMBOL_GPL(unregister_soc_update_flt_reset);
+EXPORT_SYMBOL_GPL(unregister_soc_update_flt_reset);*/
 #endif
 
 int metis_update_top_task_info(void)
