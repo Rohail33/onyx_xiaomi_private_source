@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config XIAOMI_HWID
+	tristate "Xiaomi HWID driver"
+	help
+	  Reconstructed Xiaomi hardware ID module.
+
+	  This driver exposes Xiaomi hardware/project identifiers through sysfs
+	  and exported helper symbols used by vendor modules:
+
+	    get_hw_build_adc
+	    get_hw_country_version
+	    get_hw_id_value
+	    get_hw_project_adc
+	    get_hw_version_build
+	    get_hw_version_major
+	    get_hw_version_minor
+	    get_hw_version_platform
+	    product_name_get
+
+	  The original module depends on Qualcomm socinfo. If built on a kernel
+	  where socinfo_get_id() is unavailable, provide an equivalent helper or
+	  pass project=<id> as a module parameter and adapt hwid.c accordingly.
