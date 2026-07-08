@@ -8,7 +8,7 @@
  * cpu_limits freq_qos behavior, panel/USB notifications and Xiaomi MCA hooks.
  */
 
-#include <linux/cpu.h>
+/*#include <linux/cpu.h>
 #include <linux/cpufreq.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+
 #include <linux/notifier.h>
 #include <linux/of.h>
 #include <linux/pm_qos.h>
@@ -23,11 +24,37 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/sysfs.h>
+#include <linux/workqueue.h>*/
+
+#include <linux/module.h>
+#include <linux/device.h>
+#include <linux/err.h>
+#include <linux/slab.h>
+#include <linux/kdev_t.h>
+#include <linux/idr.h>
+#include <linux/thermal.h>
+#include <linux/reboot.h>
+#include <linux/string.h>
+#include <linux/of.h>
+#include <net/netlink.h>
+#include <net/genetlink.h>
+#include <linux/suspend.h>
+#include <linux/cpu_cooling.h>
+#include <linux/soc/qcom/panel_event_notifier.h>
+#include <linux/pm_qos.h>
+#include <linux/cpufreq.h>
+#include <linux/kobject.h>
+#include <linux/kernfs.h>
 #include <linux/workqueue.h>
+#include <linux/power_supply.h>
+
+
 
 #define MI_THERMAL_BUF_LEN	128
+#define MI_THERMAL_CLASS_NODE	"thermal_message"
 #define MI_THERMAL_NODE		"thermal-message"
 #define MI_POWERSAVE_NODE	"mi_powersave"
+#define MI_POWERSAVE_CLASS_NODE	"power_save"
 
 struct drm_panel;
 
@@ -39,12 +66,6 @@ struct drm_panel;
 #if IS_ENABLED(CONFIG_MI_THERMAL_INTERFACE_XIAOMI_HOOKS)
 extern int mca_smartchg_set_scene(const char *scene, int value);
 extern int mca_event_block_notify(int type, int event, void *data);
-extern void *panel_event_notifier_register(unsigned int tag,
-					   unsigned int client,
-					   struct device_node *node,
-					   void *cb, void *data);
-extern void panel_event_notifier_unregister(void *cookie);
-extern struct drm_panel *of_drm_find_panel(const struct device_node *np);
 #else
 static inline int mca_smartchg_set_scene(const char *scene, int value)
 {
@@ -62,28 +83,25 @@ enum {
 	MCA_EVENT_THERMAL_BOARD_TEMP_CHANGE = 62,
 };
 
-enum {
-	PANEL_EVENT_NOTIFICATION_PRIMARY = 1,
-	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL = 6,
-	DRM_PANEL_EVENT_BLANK = 1,
-	DRM_PANEL_EVENT_UNBLANK = 2,
-};
 
-struct panel_event_notification {
-	unsigned int notif_type;
-	void *notif_data;
+
+struct freq_table {
+	u32 frequency;
 };
 
 struct cpufreq_device {
 	struct list_head node;
-	unsigned int cpu;
+	int id;
+	unsigned int cpufreq_state;
+	unsigned int max_level;
+	struct freq_table *freq_table;
 	struct cpufreq_policy *policy;
-	struct freq_qos_request qos_req;
-	bool qos_added;
+	struct freq_qos_request *qos_req;
 };
 
 struct mi_thermal_device {
 	struct kobject *kobj;
+	struct kobject *class_kobj;
 };
 
 struct mi_thermal_string_attr {
@@ -92,6 +110,7 @@ struct mi_thermal_string_attr {
 
 LIST_HEAD(cpufreq_dev_list);
 static DEFINE_MUTEX(cpufreq_list_lock);
+static DEFINE_PER_CPU(struct freq_qos_request, qos_req);
 
 char *board_sensor;
 EXPORT_SYMBOL_GPL(board_sensor);
@@ -143,6 +162,77 @@ static char board_sensor_temp[MI_THERMAL_BUF_LEN] = "0";
 static char board_sensor_second_temp[MI_THERMAL_BUF_LEN] = "0";
 static char board_sensor_other_temp[MI_THERMAL_BUF_LEN] = "0";
 static char ambient_sensor_temp[MI_THERMAL_BUF_LEN] = "0";
+
+static struct kobject *mi_thermal_get_class_kobj(const char *class_name)
+{
+	struct kernfs_node *sysfs_sd;
+	struct kernfs_node *class_sd;
+	struct kernfs_node *target_sd;
+	struct kobject *kobj = NULL;
+
+	if (!kernel_kobj || !kernel_kobj->sd || !kernel_kobj->sd->parent)
+		return NULL;
+
+	sysfs_sd = kernel_kobj->sd->parent;
+	class_sd = kernfs_find_and_get(sysfs_sd, "class");
+	if (!class_sd)
+		return NULL;
+
+	target_sd = kernfs_find_and_get(class_sd, class_name);
+	kernfs_put(class_sd);
+	if (!target_sd)
+		return NULL;
+
+	if (target_sd->priv)
+		kobj = kobject_get(target_sd->priv);
+	kernfs_put(target_sd);
+
+	return kobj;
+}
+
+static int mi_thermal_create_class_node(struct mi_thermal_device *mdev,
+					const char *name,
+					const struct attribute_group *group)
+{
+	struct kobject *thermal_kobj;
+	int ret;
+
+	thermal_kobj = mi_thermal_get_class_kobj("thermal");
+	if (!thermal_kobj)
+		return -ENODEV;
+
+	mdev->class_kobj = kobject_create_and_add(name, thermal_kobj);
+	kobject_put(thermal_kobj);
+	if (!mdev->class_kobj)
+		return -ENOMEM;
+
+	ret = sysfs_create_group(mdev->class_kobj, group);
+	if (ret) {
+		kobject_put(mdev->class_kobj);
+		mdev->class_kobj = NULL;
+	}
+
+	return ret;
+}
+
+static void mi_thermal_destroy_class_node(struct mi_thermal_device *mdev,
+					  const struct attribute_group *group)
+{
+	if (!mdev->class_kobj)
+		return;
+
+	sysfs_remove_group(mdev->class_kobj, group);
+	kobject_put(mdev->class_kobj);
+	mdev->class_kobj = NULL;
+}
+
+static void mi_thermal_notify(struct mi_thermal_device *mdev, const char *attr)
+{
+	if (mdev->class_kobj)
+		sysfs_notify(mdev->class_kobj, NULL, attr);
+	if (mdev->kobj)
+		sysfs_notify(mdev->kobj, NULL, attr);
+}
 
 static ssize_t mi_int_show(int *value, char *buf)
 {
@@ -202,25 +292,42 @@ static ssize_t thermal_##_name##_store(struct kobject *kobj,		\
 static struct kobj_attribute dev_attr_##_name =				\
 	__ATTR(_name, 0664, thermal_##_name##_show, thermal_##_name##_store)
 
+static int cpufreq_set_level(struct cpufreq_device *cdev, unsigned long state)
+{
+	if (WARN_ON(state > cdev->max_level))
+		return -EINVAL;
+
+	if (cdev->cpufreq_state == state)
+		return 0;
+
+	cdev->cpufreq_state = state;
+	return freq_qos_update_request(cdev->qos_req,
+				       cdev->freq_table[state].frequency);
+}
+
 int cpu_limits_set_level(unsigned int cpu, unsigned int max_freq)
 {
-	struct cpufreq_device *pos;
+	struct cpufreq_device *cpufreq_dev;
+	unsigned int level;
 	int ret = -ENODEV;
 
 	mutex_lock(&cpufreq_list_lock);
-	list_for_each_entry(pos, &cpufreq_dev_list, node) {
-		if (pos->cpu != cpu)
+	list_for_each_entry(cpufreq_dev, &cpufreq_dev_list, node) {
+		if (cpufreq_dev->id != cpu)
 			continue;
 
-		if (!pos->qos_added) {
-			ret = -EINVAL;
-			break;
-		}
+		for (level = 0; level <= cpufreq_dev->max_level; level++) {
+			unsigned int target_freq =
+				cpufreq_dev->freq_table[level].frequency;
 
-		ret = freq_qos_update_request(&pos->qos_req, max_freq);
-		if (ret < 0)
-			pr_err("%s: Failed to update freq constraint cpu=%u freq=%u ret=%d\n",
-			       __func__, cpu, max_freq, ret);
+			if (max_freq >= target_freq) {
+				ret = cpufreq_set_level(cpufreq_dev, level);
+				break;
+			}
+		}
+		if (ret == -ENODEV)
+			ret = cpufreq_set_level(cpufreq_dev,
+						cpufreq_dev->max_level);
 		break;
 	}
 	mutex_unlock(&cpufreq_list_lock);
@@ -228,6 +335,20 @@ int cpu_limits_set_level(unsigned int cpu, unsigned int max_freq)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(cpu_limits_set_level);
+
+static unsigned int find_next_max(struct cpufreq_frequency_table *table,
+				  unsigned int prev_max)
+{
+	struct cpufreq_frequency_table *pos;
+	unsigned int max = 0;
+
+	cpufreq_for_each_valid_entry(pos, table) {
+		if (pos->frequency > max && pos->frequency < prev_max)
+			max = pos->frequency;
+	}
+
+	return max;
+}
 
 static ssize_t cpu_limits_show(struct kobject *kobj, struct kobj_attribute *attr,
 			       char *buf)
@@ -255,7 +376,7 @@ static struct kobj_attribute dev_attr_cpu_limits =
 static ssize_t thermal_sconfig_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&switch_mode));
+	return scnprintf(buf, PAGE_SIZE, "%d\n", -1);
 }
 
 static ssize_t thermal_sconfig_store(struct kobject *kobj,
@@ -422,8 +543,7 @@ static void usb_online_work(struct work_struct *work)
 	}
 
 	usb_online = val.intval;
-	if (mi_thermal_dev.kobj)
-		sysfs_notify(mi_thermal_dev.kobj, NULL, "usb_online");
+	mi_thermal_notify(&mi_thermal_dev, "usb_online");
 }
 
 static int usb_online_callback(struct notifier_block *nb,
@@ -445,13 +565,12 @@ static void screen_state_check(struct work_struct *work)
 		return;
 
 	screen_state = new_state;
-	if (mi_thermal_dev.kobj)
-		sysfs_notify(mi_thermal_dev.kobj, NULL, "screen_state");
+	mi_thermal_notify(&mi_thermal_dev, "screen_state");
 }
 
-#if IS_ENABLED(CONFIG_MI_THERMAL_INTERFACE_XIAOMI_HOOKS)
-static void screen_state_for_thermal_callback(void *data,
-					      struct panel_event_notification *notif)
+static void screen_state_for_thermal_callback(enum panel_event_notifier_tag tag,
+					      struct panel_event_notification *notif,
+					      void *data)
 {
 	if (!notif)
 		return;
@@ -470,49 +589,86 @@ static void screen_state_for_thermal_callback(void *data,
 
 	queue_delayed_work(screen_state_wq, &screen_state_dw, 0);
 }
-#endif
+
 
 static int mi_thermal_init_cpufreq(void)
 {
-	struct cpufreq_device *cdev;
 	struct cpufreq_policy *policy;
+	struct freq_qos_request *req;
 	unsigned int cpu;
-	int ret;
+	int ret = 0;
 
 	for_each_possible_cpu(cpu) {
+		struct cpufreq_device *cpufreq_dev;
+		unsigned int count;
+		unsigned int freq;
+		unsigned int i;
+
+		req = &per_cpu(qos_req, cpu);
 		policy = cpufreq_cpu_get(cpu);
 		if (!policy) {
 			pr_err("%s: cpufreq policy not found for cpu%d\n",
 			       __func__, cpu);
-			continue;
+			return -ESRCH;
+		}
+		pr_debug("%s cpu=%d\n", __func__, cpu);
+
+		count = cpufreq_table_count_valid_entries(policy);
+		if (!count) {
+			pr_debug("%s: CPUFreq table not found or has no valid entries\n",
+				 __func__);
+			cpufreq_cpu_put(policy);
+			return -ENODEV;
 		}
 
-		cdev = kzalloc(sizeof(*cdev), GFP_KERNEL);
-		if (!cdev) {
+		cpufreq_dev = kzalloc(sizeof(*cpufreq_dev), GFP_KERNEL);
+		if (!cpufreq_dev) {
 			cpufreq_cpu_put(policy);
 			return -ENOMEM;
 		}
 
-		cdev->cpu = cpu;
-		cdev->policy = policy;
-		ret = freq_qos_add_request(&policy->constraints, &cdev->qos_req,
-					   FREQ_QOS_MAX,
-					   FREQ_QOS_MAX_DEFAULT_VALUE);
+		cpufreq_dev->policy = policy;
+		cpufreq_dev->qos_req = req;
+		cpufreq_dev->max_level = count - 1;
+		cpufreq_dev->id = policy->cpu;
+		cpufreq_dev->freq_table = kmalloc_array(count,
+						sizeof(*cpufreq_dev->freq_table),
+						GFP_KERNEL);
+		if (!cpufreq_dev->freq_table) {
+			cpufreq_cpu_put(policy);
+			kfree(cpufreq_dev);
+			return -ENOMEM;
+		}
+
+		for (i = 0, freq = UINT_MAX; i <= cpufreq_dev->max_level; i++) {
+			freq = find_next_max(policy->freq_table, freq);
+			cpufreq_dev->freq_table[i].frequency = freq;
+
+			if (!freq)
+				pr_warn("%s: table has duplicate entries\n",
+					__func__);
+			else
+				pr_debug("%s: freq:%u KHz\n", __func__, freq);
+		}
+
+		ret = freq_qos_add_request(&policy->constraints,
+					   cpufreq_dev->qos_req, FREQ_QOS_MAX,
+					   cpufreq_dev->freq_table[0].frequency);
 		if (ret < 0) {
 			pr_err("%s: Failed to add freq constraint (%d)\n",
 			       __func__, ret);
 			cpufreq_cpu_put(policy);
-			kfree(cdev);
-			continue;
+			kfree(cpufreq_dev->freq_table);
+			kfree(cpufreq_dev);
+			return ret;
 		}
 
-		cdev->qos_added = true;
 		mutex_lock(&cpufreq_list_lock);
-		list_add(&cdev->node, &cpufreq_dev_list);
+		list_add(&cpufreq_dev->node, &cpufreq_dev_list);
 		mutex_unlock(&cpufreq_list_lock);
 	}
 
-	return 0;
+	return ret;
 }
 
 static void mi_thermal_destroy_cpufreq(void)
@@ -522,10 +678,11 @@ static void mi_thermal_destroy_cpufreq(void)
 	mutex_lock(&cpufreq_list_lock);
 	list_for_each_entry_safe(pos, tmp, &cpufreq_dev_list, node) {
 		list_del(&pos->node);
-		if (pos->qos_added)
-			freq_qos_remove_request(&pos->qos_req);
+		if (pos->qos_req)
+			freq_qos_remove_request(pos->qos_req);
 		if (pos->policy)
 			cpufreq_cpu_put(pos->policy);
+		kfree(pos->freq_table);
 		kfree(pos);
 	}
 	mutex_unlock(&cpufreq_list_lock);
@@ -534,21 +691,35 @@ static void mi_thermal_destroy_cpufreq(void)
 static int create_thermal_message_node(void)
 {
 	int ret;
+	int fallback_ret;
+
+	ret = mi_thermal_create_class_node(&mi_thermal_dev,
+					   MI_THERMAL_CLASS_NODE,
+					   &mi_thermal_dev_attr_group);
+	if (ret)
+		pr_info("%s: /sys/class/thermal/%s unavailable, using fallback: %d\n",
+			__func__, MI_THERMAL_CLASS_NODE, ret);
 
 	mi_thermal_dev.kobj = kobject_create_and_add(MI_THERMAL_NODE,
 						     kernel_kobj);
 	if (!mi_thermal_dev.kobj) {
-		pr_err("%s ERROR: Cannot create sysfs structure!\n", __func__);
-		return -ENOMEM;
+		if (!mi_thermal_dev.class_kobj) {
+			pr_err("%s ERROR: Cannot create sysfs structure!\n",
+			       __func__);
+			return -ENOMEM;
+		}
+		return 0;
 	}
 
-	ret = sysfs_create_group(mi_thermal_dev.kobj, &mi_thermal_dev_attr_group);
-	if (ret) {
+	fallback_ret = sysfs_create_group(mi_thermal_dev.kobj,
+					  &mi_thermal_dev_attr_group);
+	if (fallback_ret) {
 		pr_err("%s ERROR: Cannot create sysfs structure!:%d\n",
-		       __func__, ret);
+		       __func__, fallback_ret);
 		kobject_put(mi_thermal_dev.kobj);
 		mi_thermal_dev.kobj = NULL;
-		return ret;
+		if (!mi_thermal_dev.class_kobj)
+			return fallback_ret;
 	}
 
 	return 0;
@@ -557,29 +728,43 @@ static int create_thermal_message_node(void)
 static void destroy_thermal_message_node(void)
 {
 	pr_info("%s:destroy_thermal_message_node\n", __func__);
-	if (!mi_thermal_dev.kobj)
-		return;
+	mi_thermal_destroy_class_node(&mi_thermal_dev,
+				      &mi_thermal_dev_attr_group);
 
-	sysfs_remove_group(mi_thermal_dev.kobj, &mi_thermal_dev_attr_group);
-	kobject_put(mi_thermal_dev.kobj);
-	mi_thermal_dev.kobj = NULL;
+	if (mi_thermal_dev.kobj) {
+		sysfs_remove_group(mi_thermal_dev.kobj,
+				   &mi_thermal_dev_attr_group);
+		kobject_put(mi_thermal_dev.kobj);
+		mi_thermal_dev.kobj = NULL;
+		}
 }
 
 static int create_mi_powersave_node(void)
 {
 	int ret;
+	int fallback_ret;
+	ret = mi_thermal_create_class_node(&mi_powersave_dev,
+					   MI_POWERSAVE_CLASS_NODE,
+					   &mi_powersave_dev_attr_group);
+	if (ret)
+		pr_info("%s: /sys/class/thermal/%s unavailable, using fallback: %d\n",
+			__func__, MI_POWERSAVE_CLASS_NODE, ret);
 
 	mi_powersave_dev.kobj = kobject_create_and_add(MI_POWERSAVE_NODE,
 						       kernel_kobj);
-	if (!mi_powersave_dev.kobj)
-		return -ENOMEM;
+	if (!mi_powersave_dev.kobj) {
+		if (!mi_powersave_dev.class_kobj)
+			return -ENOMEM;
+		return 0;
+	}
 
-	ret = sysfs_create_group(mi_powersave_dev.kobj,
-				 &mi_powersave_dev_attr_group);
-	if (ret) {
+	fallback_ret = sysfs_create_group(mi_powersave_dev.kobj,
+					  &mi_powersave_dev_attr_group);
+	if (fallback_ret) {
 		kobject_put(mi_powersave_dev.kobj);
 		mi_powersave_dev.kobj = NULL;
-		return ret;
+		if (!mi_powersave_dev.class_kobj)
+			return fallback_ret;
 	}
 
 	return 0;
@@ -588,12 +773,16 @@ static int create_mi_powersave_node(void)
 static void destroy_mi_powersave_node(void)
 {
 	pr_info("%s:destroy_mi_powersave_node\n", __func__);
-	if (!mi_powersave_dev.kobj)
-		return;
+	mi_thermal_destroy_class_node(&mi_powersave_dev,
+				      &mi_powersave_dev_attr_group);
 
-	sysfs_remove_group(mi_powersave_dev.kobj, &mi_powersave_dev_attr_group);
-	kobject_put(mi_powersave_dev.kobj);
-	mi_powersave_dev.kobj = NULL;
+
+	if (mi_powersave_dev.kobj) {
+		sysfs_remove_group(mi_powersave_dev.kobj,
+				   &mi_powersave_dev_attr_group);
+		kobject_put(mi_powersave_dev.kobj);
+		mi_powersave_dev.kobj = NULL;
+		}
 }
 
 static int of_parse_thermal_message(void)
@@ -601,13 +790,23 @@ static int of_parse_thermal_message(void)
 	struct device_node *np;
 
 	np = of_find_node_by_name(NULL, "thermal-message");
-	if (!np)
-		return -ENODEV;
+	if (!np) {
+		board_sensor = "board-sensor";
+		ambient_sensor = "ABT-SENSOR";
+		pr_info("%s: thermal-message node missing, using defaults\n",
+			__func__);
+		return 0;
+	}
 
 	of_property_read_string(np, "board-sensor",
 				(const char **)&board_sensor);
 	of_property_read_string(np, "ambient-sensor",
 				(const char **)&ambient_sensor);
+
+	if (!board_sensor)
+		board_sensor = "board-sensor";
+	if (!ambient_sensor)
+		ambient_sensor = "ABT-SENSOR";
 
 	if (board_sensor)
 		pr_info("%s board sensor: %s\n", __func__, board_sensor);
@@ -621,11 +820,12 @@ static int __init mi_thermal_interface_init(void)
 	int ret;
 
 	pr_info("%s\n", __func__);
+	mi_thermal_init_cpufreq();
 
 	ret = of_parse_thermal_message();
 	if (ret)
-		pr_err("%s:Thermal: Can not parse thermal message node, return %d\n",
-		       __func__, ret);
+		pr_info("%s:Thermal: thermal message node unavailable, return %d\n",
+			__func__, ret);
 
 	screen_state_wq = alloc_workqueue("screen_state_wq",
 					  WQ_UNBOUND | WQ_HIGHPRI, 0);
@@ -644,7 +844,6 @@ static int __init mi_thermal_interface_init(void)
 		pr_err("%s:Thermal: Can not parse mi_powersave node, return %d\n",
 		       __func__, ret);
 
-	mi_thermal_init_cpufreq();
 
 	usb_monitor.notifier_call = usb_online_callback;
 	ret = power_supply_reg_notifier(&usb_monitor);
@@ -652,7 +851,6 @@ static int __init mi_thermal_interface_init(void)
 		pr_err("usb online notifier registration error. return: %d\n",
 		       ret);
 
-#if IS_ENABLED(CONFIG_MI_THERMAL_INTERFACE_XIAOMI_HOOKS)
 	panel_cookie = panel_event_notifier_register(
 			PANEL_EVENT_NOTIFICATION_PRIMARY,
 			PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
@@ -660,7 +858,6 @@ static int __init mi_thermal_interface_init(void)
 	if (!panel_cookie)
 		pr_err("%s:Failed to register for prim_panel events\n",
 		       __func__);
-#endif
 
 	return 0;
 
@@ -680,10 +877,9 @@ static void __exit mi_thermal_interface_exit(void)
 	if (screen_state_wq)
 		destroy_workqueue(screen_state_wq);
 
-#if IS_ENABLED(CONFIG_MI_THERMAL_INTERFACE_XIAOMI_HOOKS)
+
 	if (panel_cookie)
 		panel_event_notifier_unregister(panel_cookie);
-#endif
 
 	destroy_thermal_message_node();
 	destroy_mi_powersave_node();
