@@ -1,0 +1,27 @@
+config MI_THERMAL_INTERFACE
+	tristate "Xiaomi thermal control interface"
+	depends on CPU_FREQ
+	depends on PM
+	help
+	  Reconstructed Xiaomi thermal userspace interface.  This module
+	  provides thermal-message and mi_powersave sysfs nodes, CPU max
+	  frequency QoS control through cpu_limits, USB online notification,
+	  screen state notification hooks, and Xiaomi thermal switch state
+	  integration.
+
+	  The reconstructed ABI is based on mi_thermal_interface.ko symbols:
+	  temp_state, cpu_limits, sconfig, screen_state, boost,
+	  board_sensor_temp, modem/wifi/ntn limits, powersave_mode and
+	  power_level.
+
+config MI_THERMAL_INTERFACE_XIAOMI_HOOKS
+	bool "Enable Xiaomi MCA and panel notifier hooks"
+	depends on MI_THERMAL_INTERFACE
+	default y
+	help
+	  Enable integration with Xiaomi-only symbols:
+	  mca_smartchg_set_scene, mca_event_block_notify,
+	  panel_event_notifier_register and panel_event_notifier_unregister.
+
+	  Disable this option when building on a generic kernel tree that does
+	  not provide Xiaomi MCA/panel notifier modules.
