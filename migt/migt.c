@@ -150,162 +150,7 @@ extern int register_mi_dflt_bw_update_cb(void *cb);
 extern int unregister_mi_dflt_bw_update_cb(void);
 extern int register_corectl_boost_hook(void);
 
-static int register_oem_flt_enable_hook(void)
-{
-	return 0;
-}
 
-static void unregister_oem_flt_enable_hook(void)
-{
-}
-
-static int register_oem_flt_wakeup_hook(void)
-{
-	return 0;
-}
-
-static void unregister_oem_flt_wakeup_hook(void)
-{
-}
-
-static int register_oem_freq_hook(void)
-{
-	return 0;
-}
-
-static void unregister_oem_freq_hook(void)
-{
-}
-
-static int register_oem_update_frame_load_hook(void)
-{
-	return 0;
-}
-
-static void unregister_oem_update_frame_load_hook(void)
-{
-}
-
-int register_game_migt_cpus_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_cpus_hook);
-
-void unregister_game_migt_cpus_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_cpus_hook);
-
-int register_game_migt_exclusive_cpus_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_exclusive_cpus_hook);
-
-void unregister_game_migt_exclusive_cpus_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_exclusive_cpus_hook);
-
-int register_game_migt_should_skip_migrate_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_should_skip_migrate_hook);
-
-void unregister_game_migt_should_skip_migrate_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_should_skip_migrate_hook);
-
-int register_game_migt_should_skip_this_cpu_rt_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_should_skip_this_cpu_rt_hook);
-
-void unregister_game_migt_should_skip_this_cpu_rt_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_should_skip_this_cpu_rt_hook);
-
-int register_game_migt_skip_cpus_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_skip_cpus_hook);
-
-void unregister_game_migt_skip_cpus_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_skip_cpus_hook);
-
-int register_game_migt_skip_cpus_rt_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_migt_skip_cpus_rt_hook);
-
-void unregister_game_migt_skip_cpus_rt_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_migt_skip_cpus_rt_hook);
-
-int register_game_ravg_window(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_ravg_window);
-
-void unregister_game_ravg_window(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_ravg_window);
-
-int register_game_vip_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_game_vip_hook);
-
-void unregister_game_vip_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_game_vip_hook);
-
-int register_migt_check_rt_hook(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_migt_check_rt_hook);
-
-void unregister_migt_check_rt_hook(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_migt_check_rt_hook);
-
-int register_soc_update_flt_load(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_soc_update_flt_load);
-
-void unregister_soc_update_flt_load(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_soc_update_flt_load);
-
-int register_soc_update_flt_reset(void)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(register_soc_update_flt_reset);
-
-void unregister_soc_update_flt_reset(void)
-{
-}
-EXPORT_SYMBOL_GPL(unregister_soc_update_flt_reset);
 
 static void migt_trace(const char *fmt, ...)
 {
@@ -320,7 +165,7 @@ static int migt_startup(void)
 {
 	int ret = 0;
 
-	ret |= register_game_migt_cpus_hook();
+	/*ret |= register_game_migt_cpus_hook();
 	ret |= register_game_migt_exclusive_cpus_hook();
 	ret |= register_game_migt_should_skip_migrate_hook();
 	ret |= register_game_migt_should_skip_this_cpu_rt_hook();
@@ -344,14 +189,14 @@ static int migt_startup(void)
 	ret |= register_sched_load_update_hook();
 	ret |= register_ui_task_detect();
 	ret |= register_vip_task_detect();
-	ret |= register_corectl_boost_hook();
+	ret |= register_corectl_boost_hook();*/
 
 	return ret;
 }
 
 static void migt_shutdown(void)
 {
-	unregister_vip_task_detect();
+	/*unregister_vip_task_detect();
 	unregister_ui_task_detect();
 	unregister_sched_load_update_hook();
 	unregister_render_task_detect();
@@ -374,7 +219,7 @@ static void migt_shutdown(void)
 	unregister_game_migt_should_skip_this_cpu_rt_hook();
 	unregister_game_migt_should_skip_migrate_hook();
 	unregister_game_migt_exclusive_cpus_hook();
-	unregister_game_migt_cpus_hook();
+	unregister_game_migt_cpus_hook();*/
 }
 
 int migt_sched_init(void)
@@ -492,4 +337,5 @@ module_exit(migt_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Xiaomi MIGT reconstructed source export");
-MODULE_AUTHOR("Codex reverse-engineering scaffold");
+
+MODULE_SOFTDEP("pre: sched-walt");
