@@ -154,7 +154,7 @@ int unregister_walt_update_hooks(void)
 EXPORT_SYMBOL_GPL(unregister_walt_update_hooks);
 
 xiaomi_hook_t oem_get_ravg_window_hook;
-/*int register_game_ravg_window(void (*callback)(void))
+int register_game_ravg_window(void (*callback)(void))
 {
 	if (!callback)
 		return -EINVAL;
@@ -162,16 +162,16 @@ xiaomi_hook_t oem_get_ravg_window_hook;
 	xiaomi_store_hook(oem_get_ravg_window_hook, callback);
 	return 0;
 }
-EXPORT_SYMBOL(register_game_ravg_window);*/
+EXPORT_SYMBOL(register_game_ravg_window);
 
-/*int unregister_game_ravg_window(void)
+int unregister_game_ravg_window(void)
 {
 	xiaomi_store_hook(oem_get_ravg_window_hook, NULL);
 	return 0;
 }
-EXPORT_SYMBOL(unregister_game_ravg_window);*/
+EXPORT_SYMBOL(unregister_game_ravg_window);
 
-/*xiaomi_hook_t game_vip_hook;
+xiaomi_hook_t game_vip_hook;
 int register_game_vip_hook(void (*callback)(void))
 {
 	if (!callback)
@@ -180,14 +180,14 @@ int register_game_vip_hook(void (*callback)(void))
 	xiaomi_store_hook(game_vip_hook, callback);
 	return 0;
 }
-EXPORT_SYMBOL(register_game_vip_hook);*/
+EXPORT_SYMBOL(register_game_vip_hook);
 
-/*int unregister_game_vip_hook(void)
+int unregister_game_vip_hook(void)
 {
 	xiaomi_store_hook(game_vip_hook, NULL);
 	return 0;
 }
-EXPORT_SYMBOL(unregister_game_vip_hook);*/
+EXPORT_SYMBOL(unregister_game_vip_hook);
 
 xiaomi_hook_t oem_flt_enable_hook;
 int register_oem_flt_enable_hook(void (*callback)(void))
@@ -261,7 +261,7 @@ int unregister_oem_freq_hook(void)
 }
 EXPORT_SYMBOL_GPL(unregister_oem_freq_hook);
 
-/*xiaomi_hook_t soc_update_flt_load_hook;
+xiaomi_hook_t soc_update_flt_load_hook;
 int register_soc_update_flt_load(void (*callback)(void))
 {
 	if (!callback)
@@ -270,16 +270,16 @@ int register_soc_update_flt_load(void (*callback)(void))
 	xiaomi_store_hook(soc_update_flt_load_hook, callback);
 	return 0;
 }
-EXPORT_SYMBOL(register_soc_update_flt_load);*/
+EXPORT_SYMBOL(register_soc_update_flt_load);
 
-/*int unregister_soc_update_flt_load(void)
+int unregister_soc_update_flt_load(void)
 {
 	xiaomi_store_hook(soc_update_flt_load_hook, NULL);
 	return 0;
 }
-EXPORT_SYMBOL(unregister_soc_update_flt_load);*/
+EXPORT_SYMBOL(unregister_soc_update_flt_load);
 
-/*xiaomi_hook_t soc_update_flt_reset_hook;
+xiaomi_hook_t soc_update_flt_reset_hook;
 int register_soc_update_flt_reset(void (*callback)(void))
 {
 	if (!callback)
@@ -288,12 +288,137 @@ int register_soc_update_flt_reset(void (*callback)(void))
 	xiaomi_store_hook(soc_update_flt_reset_hook, callback);
 	return 0;
 }
-EXPORT_SYMBOL(register_soc_update_flt_reset);*/
+EXPORT_SYMBOL(register_soc_update_flt_reset);
 
-/*int unregister_soc_update_flt_reset(void)
+int unregister_soc_update_flt_reset(void)
 {
 	xiaomi_store_hook(soc_update_flt_reset_hook, NULL);
 	return 0;
 }
-EXPORT_SYMBOL(unregister_soc_update_flt_reset);*/
+EXPORT_SYMBOL(unregister_soc_update_flt_reset);
 
+xiaomi_hook_t oem_check_migt_rt_hook;
+int register_migt_check_rt_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(oem_check_migt_rt_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_migt_check_rt_hook);
+
+int unregister_migt_check_rt_hook(void)
+{
+	xiaomi_store_hook(oem_check_migt_rt_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_migt_check_rt_hook);
+
+xiaomi_hook_t game_migt_should_skip_migrate_hook;
+int register_game_migt_should_skip_migrate_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_should_skip_migrate_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_should_skip_migrate_hook);
+
+int unregister_game_migt_should_skip_migrate_hook(void)
+{
+	xiaomi_store_hook(game_migt_should_skip_migrate_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_should_skip_migrate_hook);
+
+xiaomi_hook_t game_migt_should_skip_this_cpu_rt_hook;
+int register_game_migt_should_skip_this_cpu_rt_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_should_skip_this_cpu_rt_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_should_skip_this_cpu_rt_hook);
+
+int unregister_game_migt_should_skip_this_cpu_rt_hook(void)
+{
+	xiaomi_store_hook(game_migt_should_skip_this_cpu_rt_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_should_skip_this_cpu_rt_hook);
+
+xiaomi_hook_t game_migt_skip_cpus_rt_hook;
+int register_game_migt_skip_cpus_rt_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_skip_cpus_rt_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_skip_cpus_rt_hook);
+
+int unregister_game_migt_skip_cpus_rt_hook(void)
+{
+	xiaomi_store_hook(game_migt_skip_cpus_rt_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_skip_cpus_rt_hook);
+
+xiaomi_hook_t game_migt_cpus_hook;
+int register_game_migt_cpus_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_cpus_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_cpus_hook);
+
+int unregister_game_migt_cpus_hook(void)
+{
+	xiaomi_store_hook(game_migt_cpus_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_cpus_hook);
+
+xiaomi_hook_t game_migt_skip_cpus_hook;
+int register_game_migt_skip_cpus_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_skip_cpus_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_skip_cpus_hook);
+
+int unregister_game_migt_skip_cpus_hook(void)
+{
+	xiaomi_store_hook(game_migt_skip_cpus_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_skip_cpus_hook);
+
+xiaomi_hook_t game_migt_exclusive_cpus_hook;
+int register_game_migt_exclusive_cpus_hook(void (*callback)(void))
+{
+	if (!callback)
+		return -EINVAL;
+
+	xiaomi_store_hook(game_migt_exclusive_cpus_hook, callback);
+	return 0;
+}
+EXPORT_SYMBOL(register_game_migt_exclusive_cpus_hook);
+
+int unregister_game_migt_exclusive_cpus_hook(void)
+{
+	xiaomi_store_hook(game_migt_exclusive_cpus_hook, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(unregister_game_migt_exclusive_cpus_hook);
