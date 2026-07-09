@@ -1,0 +1,15 @@
+config XIAOMI_MIEV
+	tristate "Xiaomi MIEV exception event transport"
+	help
+	  Build the Xiaomi MIEV exception/event transport module.
+	  The driver creates /dev/miev and exports the cdev_tevent_* helper
+	  ABI used by Xiaomi vendor modules to submit structured diagnostic
+	  events.
+	  Exported symbols:
+	    cdev_tevent_alloc
+	    cdev_tevent_add_int
+	    cdev_tevent_add_str
+	    cdev_tevent_write
+	    cdev_tevent_destroy
+	  If unsure, say M when building Xiaomi vendor touch/thermal modules
+	  that depend on miev.ko.
