@@ -129,7 +129,7 @@ static struct mi_thermal_device mi_thermal_dev;
 static struct mi_thermal_device mi_powersave_dev;
 
 static int temp_state;
-static atomic_t switch_mode = ATOMIC_INIT(-1);
+static atomic_t switch_mode = ATOMIC_INIT(0);
 static bool screen_light;
 static bool screen_state;
 //static int screen_last_status = -1;
@@ -156,6 +156,11 @@ static int boot_complete;
 static int charger_mode;
 static int powersave_mode;
 static int power_level;
+
+static bool cpu_limits_enable;
+module_param(cpu_limits_enable, bool, 0644);
+MODULE_PARM_DESC(cpu_limits_enable,
+		 "Enable Xiaomi thermal cpu_limits freq_qos caps (default: off)");
 
 static char boost_buf[MI_THERMAL_BUF_LEN] = "0";
 static char board_sensor_temp[MI_THERMAL_BUF_LEN] = "0";
@@ -310,6 +315,9 @@ int cpu_limits_set_level(unsigned int cpu, unsigned int max_freq)
 	struct cpufreq_device *cpufreq_dev;
 	unsigned int level;
 	int ret = -ENODEV;
+	if (!cpu_limits_enable) {
+		return 0;
+	}
 
 	mutex_lock(&cpufreq_list_lock);
 	list_for_each_entry(cpufreq_dev, &cpufreq_dev_list, node) {
@@ -343,8 +351,9 @@ static unsigned int find_next_max(struct cpufreq_frequency_table *table,
 	unsigned int max = 0;
 
 	cpufreq_for_each_valid_entry(pos, table) {
-		if (pos->frequency > max && pos->frequency < prev_max)
+		if (pos->frequency > max && pos->frequency < prev_max){
 			max = pos->frequency;
+		}
 	}
 
 	return max;
@@ -366,6 +375,11 @@ static ssize_t cpu_limits_store(struct kobject *kobj, struct kobj_attribute *att
 		pr_err("input param error, can not prase param\n");
 		return -EINVAL;
 	}
+	if (!cpu_limits_enable) {
+		pr_info("mi_thermal_interface: cpu_limits disabled, ignore cpu%u max %u\n",
+			cpu, freq);
+		return count;
+ 	}
 
 	cpu_limits_set_level(cpu, freq);
 	return count;
@@ -376,7 +390,7 @@ static struct kobj_attribute dev_attr_cpu_limits =
 static ssize_t thermal_sconfig_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%d\n", -1);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", 0);
 }
 
 static ssize_t thermal_sconfig_store(struct kobject *kobj,
@@ -386,7 +400,7 @@ static ssize_t thermal_sconfig_store(struct kobject *kobj,
 	int val;
 
 	val = simple_strtol(buf, NULL, 10);
-	atomic_set(&switch_mode, val);
+	atomic_set(&switch_mode, 0);
 	return count;
 }
 static struct kobj_attribute dev_attr_sconfig =
@@ -820,7 +834,10 @@ static int __init mi_thermal_interface_init(void)
 	int ret;
 
 	pr_info("%s\n", __func__);
-	mi_thermal_init_cpufreq();
+	if (cpu_limits_enable)
+		mi_thermal_init_cpufreq();
+	else
+		pr_info("mi_thermal_interface: cpu_limits disabled by default\n");
 
 	ret = of_parse_thermal_message();
 	if (ret)
