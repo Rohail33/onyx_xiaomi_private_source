@@ -161,23 +161,23 @@ static bool cpu_limits_enable  = true;
 module_param(cpu_limits_enable, bool, 0644);
 MODULE_PARM_DESC(cpu_limits_enable,
 		 "Enable Xiaomi thermal cpu_limits freq_qos caps (default: off)");
-static unsigned int cpu_limits_floor_pct = 90;
+static unsigned int cpu_limits_floor_pct = 92;
 module_param(cpu_limits_floor_pct, uint, 0644);
 MODULE_PARM_DESC(cpu_limits_floor_pct,
 		 "Minimum cpu_limits cap as percentage of cluster max frequency below hot temperature");
-static unsigned int cpu_limits_hot_floor_pct = 65;
+static unsigned int cpu_limits_hot_floor_pct = 85;
 module_param(cpu_limits_hot_floor_pct, uint, 0644);
 MODULE_PARM_DESC(cpu_limits_hot_floor_pct,
 		 "Minimum cpu_limits cap as percentage of cluster max frequency at hot temperature");
-static unsigned int cpu_limits_crit_floor_pct = 55;
+static unsigned int cpu_limits_crit_floor_pct = 75;
 module_param(cpu_limits_crit_floor_pct, uint, 0644);
 MODULE_PARM_DESC(cpu_limits_crit_floor_pct,
 		 "Minimum cpu_limits cap as percentage of cluster max frequency at critical temperature");
-static unsigned int cpu_limits_hot_temp = 45;
+static unsigned int cpu_limits_hot_temp = 47;
 module_param(cpu_limits_hot_temp, uint, 0644);
 MODULE_PARM_DESC(cpu_limits_hot_temp,
 		 "Temperature in Celsius where cpu_limits allows stronger mitigation");
-static unsigned int cpu_limits_crit_temp = 50;
+static unsigned int cpu_limits_crit_temp = 53;
 module_param(cpu_limits_crit_temp, uint, 0644);
 MODULE_PARM_DESC(cpu_limits_crit_temp,
 		 "Temperature in Celsius where cpu_limits allows critical mitigation");
