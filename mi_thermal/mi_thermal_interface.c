@@ -129,7 +129,7 @@ static struct mi_thermal_device mi_thermal_dev;
 static struct mi_thermal_device mi_powersave_dev;
 
 static int temp_state;
-static atomic_t switch_mode = ATOMIC_INIT(0);
+static atomic_t switch_mode = ATOMIC_INIT(-1);
 static bool screen_light;
 static bool screen_state;
 //static int screen_last_status = -1;
@@ -157,10 +157,34 @@ static int charger_mode;
 static int powersave_mode;
 static int power_level;
 
-static bool cpu_limits_enable;
+static bool cpu_limits_enable  = true;
 module_param(cpu_limits_enable, bool, 0644);
 MODULE_PARM_DESC(cpu_limits_enable,
 		 "Enable Xiaomi thermal cpu_limits freq_qos caps (default: off)");
+static unsigned int cpu_limits_floor_pct = 90;
+module_param(cpu_limits_floor_pct, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_floor_pct,
+		 "Minimum cpu_limits cap as percentage of cluster max frequency below hot temperature");
+static unsigned int cpu_limits_hot_floor_pct = 65;
+module_param(cpu_limits_hot_floor_pct, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_hot_floor_pct,
+		 "Minimum cpu_limits cap as percentage of cluster max frequency at hot temperature");
+static unsigned int cpu_limits_crit_floor_pct = 55;
+module_param(cpu_limits_crit_floor_pct, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_crit_floor_pct,
+		 "Minimum cpu_limits cap as percentage of cluster max frequency at critical temperature");
+static unsigned int cpu_limits_hot_temp = 45;
+module_param(cpu_limits_hot_temp, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_hot_temp,
+		 "Temperature in Celsius where cpu_limits allows stronger mitigation");
+static unsigned int cpu_limits_crit_temp = 50;
+module_param(cpu_limits_crit_temp, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_crit_temp,
+		 "Temperature in Celsius where cpu_limits allows critical mitigation");
+static unsigned int cpu_limits_max_step = 1;
+module_param(cpu_limits_max_step, uint, 0644);
+MODULE_PARM_DESC(cpu_limits_max_step,
+		 "Maximum cooling states cpu_limits can increase per update below hot temperature");
 
 static char boost_buf[MI_THERMAL_BUF_LEN] = "0";
 static char board_sensor_temp[MI_THERMAL_BUF_LEN] = "0";
@@ -310,25 +334,113 @@ static int cpufreq_set_level(struct cpufreq_device *cdev, unsigned long state)
 				       cdev->freq_table[state].frequency);
 }
 
+static int mi_thermal_parse_temp(const char *buf)
+{
+	int temp;
+
+	if (!buf || !buf[0] || kstrtoint(buf, 0, &temp))
+		return INT_MIN;
+
+	if (temp <= INT_MIN || temp == INT_MAX)
+		return INT_MIN;
+
+	if (temp >= 1000)
+		return DIV_ROUND_CLOSEST(temp, 1000);
+	if (temp >= 100)
+		return DIV_ROUND_CLOSEST(temp, 10);
+
+	return temp;
+}
+
+static int mi_thermal_get_battery_temp(void)
+{
+	union power_supply_propval val = { 0 };
+	struct power_supply *psy;
+	char temp_buf[16];
+	int ret;
+
+	psy = power_supply_get_by_name("battery");
+	if (!psy)
+		return INT_MIN;
+
+	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_TEMP, &val);
+	power_supply_put(psy);
+	if (ret)
+		return INT_MIN;
+
+	scnprintf(temp_buf, sizeof(temp_buf), "%d", val.intval);
+	return mi_thermal_parse_temp(temp_buf);
+}
+
+static int mi_thermal_get_device_temp(void)
+{
+	int temp = INT_MIN;
+
+	temp = max(temp, mi_thermal_get_battery_temp());
+	temp = max(temp, READ_ONCE(temp_state));
+	temp = max(temp, READ_ONCE(display_therm_temp));
+	temp = max(temp, mi_thermal_parse_temp(board_sensor_temp));
+	temp = max(temp, mi_thermal_parse_temp(board_sensor_second_temp));
+	temp = max(temp, mi_thermal_parse_temp(board_sensor_other_temp));
+	temp = max(temp, mi_thermal_parse_temp(ambient_sensor_temp));
+
+	return temp;
+}
+
+static unsigned int cpu_limits_effective_floor_pct(int temp)
+{
+	if (temp >= (int)cpu_limits_crit_temp)
+		return cpu_limits_crit_floor_pct;
+	if (temp >= (int)cpu_limits_hot_temp)
+		return cpu_limits_hot_floor_pct;
+
+	return cpu_limits_floor_pct;
+}
+
 int cpu_limits_set_level(unsigned int cpu, unsigned int max_freq)
 {
 	struct cpufreq_device *cpufreq_dev;
-	unsigned int level;
+	unsigned int floor_pct, level;
+	int device_temp;
 	int ret = -ENODEV;
 	if (!cpu_limits_enable) {
 		return 0;
 	}
 
+	device_temp = mi_thermal_get_device_temp();
+	floor_pct = cpu_limits_effective_floor_pct(device_temp);
+
 	mutex_lock(&cpufreq_list_lock);
 	list_for_each_entry(cpufreq_dev, &cpufreq_dev_list, node) {
-		if (cpufreq_dev->id != cpu)
+		if (!cpufreq_dev->policy ||
+		    !cpumask_test_cpu(cpu, cpufreq_dev->policy->related_cpus))
 			continue;
+
+		if (!max_freq) {
+			ret = cpufreq_set_level(cpufreq_dev, 0);
+			break;
+		}
+
+		if (cpufreq_dev->freq_table) {
+			unsigned int floor_freq;
+
+			floor_freq = mult_frac(cpufreq_dev->freq_table[0].frequency,
+					       min(floor_pct, 100U), 100);
+			if (max_freq < floor_freq)
+				max_freq = floor_freq;
+		}
 
 		for (level = 0; level <= cpufreq_dev->max_level; level++) {
 			unsigned int target_freq =
 				cpufreq_dev->freq_table[level].frequency;
 
 			if (max_freq >= target_freq) {
+				if (cpu_limits_max_step &&
+				    device_temp < (int)cpu_limits_hot_temp &&
+				    level > cpufreq_dev->cpufreq_state +
+					    cpu_limits_max_step)
+					level = cpufreq_dev->cpufreq_state +
+						cpu_limits_max_step;
 				ret = cpufreq_set_level(cpufreq_dev, level);
 				break;
 			}
@@ -390,7 +502,7 @@ static struct kobj_attribute dev_attr_cpu_limits =
 static ssize_t thermal_sconfig_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%d\n", 0);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", -1);
 }
 
 static ssize_t thermal_sconfig_store(struct kobject *kobj,
@@ -400,7 +512,7 @@ static ssize_t thermal_sconfig_store(struct kobject *kobj,
 	int val;
 
 	val = simple_strtol(buf, NULL, 10);
-	atomic_set(&switch_mode, 0);
+	atomic_set(&switch_mode, -1);
 	return count;
 }
 static struct kobj_attribute dev_attr_sconfig =
